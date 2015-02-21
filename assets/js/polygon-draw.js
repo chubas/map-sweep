@@ -3,17 +3,15 @@ Class('PolygonDraw').inherits(Widget)({
     prototype : {
         init : function(config) {
             Widget.prototype.init.call(this, config);
-            this._snap = Snap(this.map.width(), this.map.height());
-            $(this._snap.node).appendTo(this.map).css({
-                position: 'absolute',
-                top: 0,
-                left : 0
-            });
 
             this.bindEvents();
         },
 
-         bindEvents : function() {
+        getCoords : function() {
+            return this._pathCoords;
+        },
+
+        bindEvents : function() {
             var polygon = this;
             this.map.on('click', function(ev) {
                 polygon._drawMarker(ev.clientX, ev.clientY);
@@ -31,6 +29,7 @@ Class('PolygonDraw').inherits(Widget)({
                     polygon.map.off('click');
                     polygon.map.off('dblclick');
                     polygon._drawPath();
+                    polygon.dispatch('path:close');
                 }
             });
             // Prevent select on dblclick for image
