@@ -19,11 +19,11 @@ Class(SC, 'App').inherits(Widget)({
             });
             this.polygonDraw.bind('path:close', function() {
                 // alert("Select home");
-                // app.map.on('click', function(ev) {
-                    var ev = {
-                        clientX : 374,
-                        clientY : 130
-                    }
+                app.map.on('click', function(ev) {
+                    // var ev = {
+                    //     clientX : 374,
+                    //     clientY : 130
+                    // }
                     app._snap.circle(ev.clientX, ev.clientY, 10).attr({
                         fill : '#5559B1',
                         stroke : '#242323',
@@ -40,7 +40,7 @@ Class(SC, 'App').inherits(Widget)({
                         legDistance : legDistance,
                         flightDirection : flightDirection
                     })
-                // });
+                });
             });
             // For quick dev
             this.polygonDraw._pathCoords = [
@@ -87,11 +87,10 @@ Class(SC, 'App').inherits(Widget)({
             var y0 = (flightPathSlope * (bbox.x - homeX)) + homeY;
             var y1 = (flightPathSlope * (bbox.x + bbox.w - homeX)) + homeY;
             console.log("M" + bbox.x + ',' + y0 + 'L' + (bbox.x + bbox.w) + ',' + y1);
-            p = this._snap.path("M" + bbox.x + ',' + y0 + 'L' + (bbox.x + bbox.w) + ',' + y1).attr({
+            this._snap.path("M" + bbox.x + ',' + y0 + 'L' + (bbox.x + bbox.w) + ',' + y1).attr({
                 stroke: '#FFFF00',
                 strokeWidth: 3
             });
-            console.log(p)
 
             // From home, and knowing the equation of the flight path line, sweep
             // both ends until no intersections are found. These will be the lines
@@ -119,17 +118,19 @@ Class(SC, 'App').inherits(Widget)({
                     app.polygonDraw._pathSVG.attr('path'),
                     'M' + bbox.x + ',' + y0 + 'L' + (bbox.x + bbox.w) + ',' + y1
                 );
-                console.log(intersection);
+                // console.log("Intersection at ", legStep, ": ")
+                // console.log(intersection);
                 return intersection;
             }
 
             var drawIntersection = function(intersection) {
+                return;
                 app._snap.path(
                     "M" + intersection[0].x + ',' + intersection[0].y +
                     'L' + intersection[1].x + ',' + intersection[1].y
                 ).attr({
                     stroke: '#0f0',
-                    strokeWidth: 3
+                    strokeWidth: 5
                 });
             }
 
@@ -150,11 +151,91 @@ Class(SC, 'App').inherits(Widget)({
             while(intersection.length >= 2) {
                 step = step - 1;
                 drawIntersection(intersection);
-                negativePoints.push([intersection[0].x, intersection[0].y]);
                 negativePoints.push([intersection[1].x, intersection[1].y]);
+                negativePoints.push([intersection[0].x, intersection[0].y]);
                 intersection = getIntersection(step);
             }
 
+            var totalPoints = negativePoints.reverse().concat(positivePoints)
+
+            var getDistance = function(p1, p2) {
+                return Math.abs(Math.sqrt(
+                    Math.pow(p1[0] - p2[0], 2) + Math.pow(p1[1] - p2[1], 2)
+                ));
+            }
+            var closest = null;
+            var sweepDirection = 0;
+            var legTravelDirection = 0;
+            var closestHomeDistance;
+
+            if(totalPoints.length == 0) {
+                throw("Flight path could not be calculated");
+            }
+
+            var d0 = getDistance(totalPoints[0], [homeX, homeY]);
+            var d1 = getDistance(totalPoints[1], [homeX, homeY]);
+            if(d0 <= d1) {
+                closest = totalPoints[0];
+                legTravelDirection = 0;
+                closestHomeDistance = d0;
+            } else {
+                closest = totalPoints[1];
+                legTravelDirection = -1;
+                closestHomeDistance = d1;
+            }
+            sweepDirection = 0;
+
+
+            if(totalPoints.length > 2) { // There are at least two legs
+                d0 = getDistance(totalPoints[totalPoints.length - 2], [homeX, homeY]);
+                d1 = getDistance(totalPoints[totalPoints.length - 1], [homeX, homeY]);
+                if(d0 < closestHomeDistance || d1 < closestHomeDistance) {
+                    if(d0 <= d1) {
+                        closest = totalPoints[totalPoints.length - 2];
+                        legTravelDirection = 0;
+                        closestHomeDistance = d0;
+                    } else {
+                        closest = totalPoints[totalPoints.length - 1];
+                        legTravelDirection = -1;
+                        closestHomeDistance = d1;
+                    }
+                    sweepDirection = -1;
+                }
+            }
+
+            console.log(closest);
+            app._snap.circle(closest[0], closest[1], 10);
+            console.log(legTravelDirection);
+            console.log(sweepDirection);
+
+            var buildPath = function(totalPoints, legTravelDirection, sweepDirection) {
+                var orderedPath = [];
+                var legSweep = legTravelDirection;
+                if(sweepDirection == -1) {
+                    totalPoints = totalPoints.reverse();
+                    legSweep = -1 - legSweep; // Alternate between 0 and -1
+                }
+                for(var i = 0; i < totalPoints.length; i += 2) {
+                    if(legSweep == 0) {
+                        orderedPath.push(totalPoints[i]);
+                        orderedPath.push(totalPoints[i + 1]);
+                    } else {
+                        orderedPath.push(totalPoints[i + 1]);
+                        orderedPath.push(totalPoints[i]);
+                    }
+                    legSweep = -1 - legSweep;
+                }
+
+                var points = [].concat.apply([], orderedPath);
+                app._snap.polyline(points).attr({
+                    fill : 'none',
+                    stroke : '#FFF',
+                    strokeWidth : 3
+                });
+
+            };
+
+            buildPath(totalPoints, legTravelDirection, sweepDirection);
 
         }
     }
