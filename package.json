@@ -1,0 +1,13 @@
+{
+  "name": "skycatch-challenge",
+  "description": "Skycatch challenge",
+  "version": "0.1.0",
+  "engines": {
+    "node" : "0.10.30"
+  },
+  "dependencies": {
+    "neon": "~2.0.0",
+    "express": "~4.8.2",
+    "http": "0.0.0"
+  }
+}
