@@ -11,6 +11,10 @@ in zig-zag motion through the waypoints. In the end, draw the flight path and
 produce stats object with the total waypoints, their coordinates and the total
 distance.
 
+## Running server
+
+`node bin/server.js`
+
 ## Limitations
 
 Currently, the program doesn't validate if the area is a convex polygon, and will
