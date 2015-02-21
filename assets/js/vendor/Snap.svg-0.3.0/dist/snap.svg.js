@@ -3136,7 +3136,8 @@ function Paper(w, h) {
         desc,
         defs,
         proto = Paper.prototype;
-    if (w && w.tagName == "svg") {
+    // https://github.com/adobe-webplatform/Snap.svg/issues/291
+    if (w && w.tagName.toLowerCase() == "svg") {
         if (w.snap in hub) {
             return hub[w.snap];
         }
