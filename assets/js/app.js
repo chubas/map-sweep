@@ -1,5 +1,7 @@
 var SC = {};
 
+var _debug = false;
+
 Class(SC, 'App').inherits(Widget)({
     prototype : {
         init : function(config) {
@@ -17,44 +19,29 @@ Class(SC, 'App').inherits(Widget)({
                 map : this.map,
                 _snap : this._snap
             });
+            this.map.on('mouseover, mousemove', function(ev) {
+                $('.x').text(ev.clientX);
+                $('.y').text(ev.clientY);
+            });
             this.polygonDraw.bind('path:close', function() {
-                // alert("Select home");
+                alert("Select home");
                 app.map.on('click', function(ev) {
-                    // var ev = {
-                    //     clientX : 374,
-                    //     clientY : 130
-                    // }
                     app._snap.circle(ev.clientX, ev.clientY, 10).attr({
                         fill : '#5559B1',
                         stroke : '#242323',
                         strokeWidth : 2
                     });
-                    // var legDistance = prompt("Distance between legs:", 50);
-                    // var flightDirection = prompt("Direction: (0 - 180)", 45);
-                    var legDistance = 40;
-                    var flightDirection = 135;
+                    var legDistance = prompt("Distance between legs:", 50);
+                    var flightDirection = prompt("Direction: (0 - 180)", 45);
 
                     app.calculateFlight({
                         polygon : app.polygonDraw.getCoords(),
                         home : [ev.clientX, ev.clientY],
                         legDistance : legDistance,
                         flightDirection : flightDirection
-                    })
+                    });
                 });
             });
-            // For quick dev
-            this.polygonDraw._pathCoords = [
-                [79,200],
-                [476,105],
-                [610,300],
-                [435,467],
-                [80,404],
-                [80,403]
-            ];
-            this.polygonDraw._closed = true;
-            this.polygonDraw._drawPath();
-            this.polygonDraw.map.off();
-            this.polygonDraw.dispatch('path:close');
         },
 
         calculateFlight : function(flightParams) {
@@ -78,19 +65,23 @@ Class(SC, 'App').inherits(Widget)({
             var legsSlope = -1 / flightPathSlope;
 
             var bbox = this.polygonDraw._pathSVG.getBBox(this.polygonDraw._pathSVG.attr('path'));
-            this._snap.rect(bbox.x, bbox.y, bbox.w, bbox.h).attr({
-                fill : 'none',
-                strokeWidth : 2,
-                stroke : '#ff0000'
-            });
+            if(_debug) {
+                this._snap.rect(bbox.x, bbox.y, bbox.w, bbox.h).attr({
+                    fill : 'none',
+                    strokeWidth : 2,
+                    stroke : '#ff0000'
+                });
+            }
 
             var y0 = (flightPathSlope * (bbox.x - homeX)) + homeY;
             var y1 = (flightPathSlope * (bbox.x + bbox.w - homeX)) + homeY;
-            console.log("M" + bbox.x + ',' + y0 + 'L' + (bbox.x + bbox.w) + ',' + y1);
-            this._snap.path("M" + bbox.x + ',' + y0 + 'L' + (bbox.x + bbox.w) + ',' + y1).attr({
-                stroke: '#FFFF00',
-                strokeWidth: 3
-            });
+
+            if(_debug) {
+                this._snap.path("M" + bbox.x + ',' + y0 + 'L' + (bbox.x + bbox.w) + ',' + y1).attr({
+                    stroke: '#FFFF00',
+                    strokeWidth: 3
+                });
+            }
 
             // From home, and knowing the equation of the flight path line, sweep
             // both ends until no intersections are found. These will be the lines
@@ -112,7 +103,7 @@ Class(SC, 'App').inherits(Widget)({
 
                 y0 = (legsSlope * (bbox.x - legParallelX)) + legParallelY;
                 y1 = (legsSlope * (bbox.x + bbox.w - legParallelX)) + legParallelY;
-                app._snap.circle(legParallelX, legParallelY, 4);
+                if(_debug) { app._snap.circle(legParallelX, legParallelY, 7); }
 
                 intersection = Snap.path.intersection(
                     app.polygonDraw._pathSVG.attr('path'),
@@ -124,14 +115,15 @@ Class(SC, 'App').inherits(Widget)({
             }
 
             var drawIntersection = function(intersection) {
-                return;
-                app._snap.path(
-                    "M" + intersection[0].x + ',' + intersection[0].y +
-                    'L' + intersection[1].x + ',' + intersection[1].y
-                ).attr({
-                    stroke: '#0f0',
-                    strokeWidth: 5
-                });
+                if(_debug) {
+                    app._snap.path(
+                        "M" + intersection[0].x + ',' + intersection[0].y +
+                        'L' + intersection[1].x + ',' + intersection[1].y
+                    ).attr({
+                        stroke: '#0f0',
+                        strokeWidth: 5
+                    });
+                }
             }
 
             var step = 0;
@@ -203,10 +195,7 @@ Class(SC, 'App').inherits(Widget)({
                 }
             }
 
-            console.log(closest);
-            app._snap.circle(closest[0], closest[1], 10);
-            console.log(legTravelDirection);
-            console.log(sweepDirection);
+            if(_debug) { app._snap.circle(closest[0], closest[1], 10); }
 
             var buildPath = function(totalPoints, legTravelDirection, sweepDirection) {
                 var orderedPath = [];
@@ -217,6 +206,7 @@ Class(SC, 'App').inherits(Widget)({
                 }
 
                 for(var i = 0; i < totalPoints.length; i += 2) {
+                    console.log('ls', legSweep);
                     if(legSweep == 0) {
                         orderedPath.push(totalPoints[i]);
                         orderedPath.push(totalPoints[i + 1]);
@@ -234,18 +224,18 @@ Class(SC, 'App').inherits(Widget)({
                     strokeWidth : 3
                 });
 
-                var totalDistance = getDistance(totalPoints[0], [homeX, homeY]);
-                for(var i = 1; i < totalPoints.length; i++) {
-                    totalDistance = totalDistance + getDistance(totalPoints[i - 1], totalPoints[i]);
+                var totalDistance = getDistance(orderedPath[0], [homeX, homeY]);
+                for(var i = 1; i < orderedPath.length; i++) {
+                    totalDistance = totalDistance + getDistance(orderedPath[i - 1], orderedPath[i]);
                 }
                 totalDistance = totalDistance + getDistance(
-                    totalPoints[totalPoints.length - 1],
+                    orderedPath[orderedPath.length - 1],
                     [homeX, homeY]
                 );
                 return {
-                    waypointCount : totalPoints.length,
+                    waypointCount : orderedPath.length,
                     totalDistance : totalDistance,
-                    waypoints : totalPoints.map(function(point) {
+                    waypoints : orderedPath.map(function(point) {
                         return {
                             lat : point[0].toFixed(4),
                             lon : point[1].toFixed(4)

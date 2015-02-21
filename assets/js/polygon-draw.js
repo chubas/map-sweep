@@ -57,7 +57,7 @@ Class('PolygonDraw').inherits(Widget)({
                     fill : '#BD302C',
                     strokeWidth : 3,
                     stroke : '#000',
-                    opacity : 0.5
+                    opacity : 0.3
                 });
             }
             if(this._closed) {
