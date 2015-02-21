@@ -4,8 +4,13 @@ var _debug = false;
 
 Class(SC, 'App').inherits(Widget)({
     prototype : {
+        home : null, // Coords [x, y] of the selected path
+        polygonPoints : null, // Points of the enclosing polygon
+        flightDirection : null, // Angle of the flight path, 0 is north and 180 is south
+        legDistance : null, // Distance between 'legs', or perpendicular paths to the flight path
         init : function(config) {
             var app = this;
+
             Widget.prototype.init.call(this, config);
 
             this._snap = Snap(this.map.width(), this.map.height());
@@ -19,41 +24,47 @@ Class(SC, 'App').inherits(Widget)({
                 map : this.map,
                 _snap : this._snap
             });
-            this.map.on('mouseover, mousemove', function(ev) {
-                $('.x').text(ev.clientX);
-                $('.y').text(ev.clientY);
-            });
+            if(_debug) {
+                this.map.on('mouseover, mousemove', function(ev) {
+                    $('.x').text(ev.clientX);
+                    $('.y').text(ev.clientY);
+                });
+            }
             this.polygonDraw.bind('path:close', function() {
-                alert("Select home");
+                app.polygonPoints = app.polygonDraw.getCoords();
+
+                alert("Select home point");
+                app.map.css({cursor : 'crosshair'});
                 app.map.on('click', function(ev) {
+                    app.map.css({cursor : 'default'});
+                    app.home = [ev.clientX, ev.clientY];
                     app._snap.circle(ev.clientX, ev.clientY, 10).attr({
                         fill : '#5559B1',
                         stroke : '#242323',
                         strokeWidth : 2
                     });
-                    var legDistance = prompt("Distance between legs:", 50);
-                    var flightDirection = prompt("Direction: (0 - 180)", 45);
+                    app.legDistance = prompt("Distance between legs:", 50);
+                    app.flightDirection = prompt("Direction: (0 - 180)", 45);
+                    app.calculateFlight();
 
-                    app.calculateFlight({
-                        polygon : app.polygonDraw.getCoords(),
-                        home : [ev.clientX, ev.clientY],
-                        legDistance : legDistance,
-                        flightDirection : flightDirection
-                    });
+                    // app.calculateFlight({
+                    //     polygon : app.polygonDraw.getCoords(),
+                    //     home : [ev.clientX, ev.clientY],
+                    //     legDistance : legDistance,
+                    //     flightDirection : flightDirection
+                    // });
                 });
             });
         },
 
-        calculateFlight : function(flightParams) {
+        calculateFlight : function() {
             // Scale can be passed as well and applied to the coords before the
             // calculations. Assume 1px = 1m for now
             var app = this;
-            var homeX = flightParams.home[0],
-                homeY = flightParams.home[1],
-                legDistance = flightParams.legDistance,
-                flightDirection = flightParams.flightDirection;
-
-            console.log(flightParams);
+            var homeX = this.home[0],
+                homeY = this.home[1],
+                legDistance = this.legDistance,
+                flightDirection = this.flightDirection;
 
             // Adjust angle to work on a geom where 0 deg is right, and angle goes
             // from x ayis clockwise
@@ -64,7 +75,9 @@ Class(SC, 'App').inherits(Widget)({
             var flightPathSlope = Math.tan(flightAngleRad);
             var legsSlope = -1 / flightPathSlope;
 
-            var bbox = this.polygonDraw._pathSVG.getBBox(this.polygonDraw._pathSVG.attr('path'));
+            this.legsSlope = legsSlope;
+            var bbox = this.getBBox();
+
             if(_debug) {
                 this._snap.rect(bbox.x, bbox.y, bbox.w, bbox.h).attr({
                     fill : 'none',
@@ -73,26 +86,24 @@ Class(SC, 'App').inherits(Widget)({
                 });
             }
 
-            var y0 = (flightPathSlope * (bbox.x - homeX)) + homeY;
-            var y1 = (flightPathSlope * (bbox.x + bbox.w - homeX)) + homeY;
-
             if(_debug) {
-                this._snap.path("M" + bbox.x + ',' + y0 + 'L' + (bbox.x + bbox.w) + ',' + y1).attr({
+                var fp0 = (flightPathSlope * (bbox.x - homeX)) + homeY;
+                var fp1 = (flightPathSlope * (bbox.x + bbox.w - homeX)) + homeY;
+
+                this._snap.path("M" + bbox.x + ',' + fp0 + 'L' + (bbox.x + bbox.w) + ',' + fp1).attr({
                     stroke: '#FFFF00',
                     strokeWidth: 3
                 });
             }
 
             // From home, and knowing the equation of the flight path line, sweep
-            // both ends until no intersections are found. These will be the lines
+            // both ends until no intersections are found.
             var step = 0;
             var point = [homeX, homeY];
             var y0 = (legsSlope * (bbox.x - homeX)) + homeY;
             var y1 = (legsSlope * (bbox.x + bbox.w - homeX)) + homeY;
             var legParallelX, legParallelY;
 
-
-            console.log("~~~~~~~~~");
             // Get the line that intersects the polygon at `step` times the
             // leg distance (sign indicates direction)
             var getIntersection = function(legStep) {
@@ -114,35 +125,26 @@ Class(SC, 'App').inherits(Widget)({
                 return intersection;
             }
 
-            var drawIntersection = function(intersection) {
-                if(_debug) {
-                    app._snap.path(
-                        "M" + intersection[0].x + ',' + intersection[0].y +
-                        'L' + intersection[1].x + ',' + intersection[1].y
-                    ).attr({
-                        stroke: '#0f0',
-                        strokeWidth: 5
-                    });
-                }
-            }
-
+            // Sweep the flight path line looking for intersections in both ways
+            // First on the positive direction
             var step = 0;
             var intersection = getIntersection(step);
             var positivePoints = [];
             while(intersection.length >= 2) {
                 step = step + 1;
-                drawIntersection(intersection);
+                app._debugIntersection(intersection);
                 positivePoints.push([intersection[0].x, intersection[0].y]);
                 positivePoints.push([intersection[1].x, intersection[1].y]);
                 intersection = getIntersection(step);
             }
 
+            // Then on the negative direction
             var negativePoints = [];
             var step = -1;
             intersection = getIntersection(step)
             while(intersection.length >= 2) {
                 step = step - 1;
-                drawIntersection(intersection);
+                app._debugIntersection(intersection);
                 negativePoints.push([intersection[1].x, intersection[1].y]);
                 negativePoints.push([intersection[0].x, intersection[0].y]);
                 intersection = getIntersection(step);
@@ -150,11 +152,6 @@ Class(SC, 'App').inherits(Widget)({
 
             var totalPoints = negativePoints.reverse().concat(positivePoints)
 
-            var getDistance = function(p1, p2) {
-                return Math.abs(Math.sqrt(
-                    Math.pow(p1[0] - p2[0], 2) + Math.pow(p1[1] - p2[1], 2)
-                ));
-            }
             var closest = null;
             var sweepDirection = 0;
             var legTravelDirection = 0;
@@ -164,8 +161,10 @@ Class(SC, 'App').inherits(Widget)({
                 throw("Flight path could not be calculated");
             }
 
-            var d0 = getDistance(totalPoints[0], [homeX, homeY]);
-            var d1 = getDistance(totalPoints[1], [homeX, homeY]);
+            // Find the closest point to home.
+            // First evaluate the ones in the positive path
+            var d0 = app.getDistance(totalPoints[0], [homeX, homeY]);
+            var d1 = app.getDistance(totalPoints[1], [homeX, homeY]);
             if(d0 <= d1) {
                 closest = totalPoints[0];
                 legTravelDirection = 0;
@@ -177,10 +176,10 @@ Class(SC, 'App').inherits(Widget)({
             }
             sweepDirection = 0;
 
-
+            // Then in the negative range
             if(totalPoints.length > 2) { // There are at least two legs
-                d0 = getDistance(totalPoints[totalPoints.length - 2], [homeX, homeY]);
-                d1 = getDistance(totalPoints[totalPoints.length - 1], [homeX, homeY]);
+                d0 = app.getDistance(totalPoints[totalPoints.length - 2], [homeX, homeY]);
+                d1 = app.getDistance(totalPoints[totalPoints.length - 1], [homeX, homeY]);
                 if(d0 < closestHomeDistance || d1 < closestHomeDistance) {
                     if(d0 <= d1) {
                         closest = totalPoints[totalPoints.length - 2];
@@ -197,57 +196,109 @@ Class(SC, 'App').inherits(Widget)({
 
             if(_debug) { app._snap.circle(closest[0], closest[1], 10); }
 
-            var buildPath = function(totalPoints, legTravelDirection, sweepDirection) {
-                var orderedPath = [];
-                var legSweep = legTravelDirection;
-                if(sweepDirection == -1) {
-                    totalPoints = totalPoints.reverse();
-                    legSweep = -1 - legSweep; // Alternate between 0 and -1
-                }
-
-                for(var i = 0; i < totalPoints.length; i += 2) {
-                    console.log('ls', legSweep);
-                    if(legSweep == 0) {
-                        orderedPath.push(totalPoints[i]);
-                        orderedPath.push(totalPoints[i + 1]);
-                    } else {
-                        orderedPath.push(totalPoints[i + 1]);
-                        orderedPath.push(totalPoints[i]);
-                    }
-                    legSweep = -1 - legSweep;
-                }
-
-                var points = [].concat.apply([], orderedPath);
-                app._snap.polyline(points).attr({
-                    fill : 'none',
-                    stroke : '#FFF',
-                    strokeWidth : 3
-                });
-
-                var totalDistance = getDistance(orderedPath[0], [homeX, homeY]);
-                for(var i = 1; i < orderedPath.length; i++) {
-                    totalDistance = totalDistance + getDistance(orderedPath[i - 1], orderedPath[i]);
-                }
-                totalDistance = totalDistance + getDistance(
-                    orderedPath[orderedPath.length - 1],
-                    [homeX, homeY]
-                );
-                return {
-                    waypointCount : orderedPath.length,
-                    totalDistance : totalDistance,
-                    waypoints : orderedPath.map(function(point) {
-                        return {
-                            lat : point[0].toFixed(4),
-                            lon : point[1].toFixed(4)
-                        }
-                    })
-                }
-            };
-
-            var dataResult = buildPath(totalPoints, legTravelDirection, sweepDirection);
+            var dataResult = app.buildFlightData(
+                totalPoints,
+                legTravelDirection,
+                sweepDirection
+            );
             console.dir(dataResult);
 
+            this.dataResult = dataResult;
+            this.map.off('click'); // Disable flow
+
+            var jsonUri = 'data:application/json,' + encodeURIComponent(JSON.stringify(app.dataResult));
+            $('body').append(
+                $('<a>View as json</a>').attr('href', jsonUri).addClass('dl')
+            ).append(
+                $('<a download>Download as json</a>').attr('href', jsonUri).addClass('dl')
+            )
+        },
+
+        buildFlightData : function(totalPoints, legTravelDirection, sweepDirection) {
+            var app = this;
+            var homeX = this.home[0],
+                homeY = this.home[1];
+            var orderedPath = [];
+            var legSweep = legTravelDirection;
+            if(sweepDirection == -1) {
+                totalPoints = totalPoints.reverse();
+                legSweep = -1 - legSweep; // Alternate between 0 and -1
+            }
+
+            for(var i = 0; i < totalPoints.length; i += 2) {
+                if(legSweep == 0) {
+                    orderedPath.push(totalPoints[i]);
+                    orderedPath.push(totalPoints[i + 1]);
+                } else {
+                    orderedPath.push(totalPoints[i + 1]);
+                    orderedPath.push(totalPoints[i]);
+                }
+                legSweep = -1 - legSweep;
+            }
+
+            var points = [].concat.apply([], orderedPath);
+            app._snap.polyline(points).attr({
+                fill : 'none',
+                stroke : '#FFF',
+                strokeWidth : 3
+            });
+            // Add a marker with the waypoint index to each
+            orderedPath.forEach(function(point, i) {
+                app._snap.rect(point[0] - 10, point[1] - 15, 20, 15).attr({
+                    opacity: 0.5,
+                    fill: '#fff'
+                })
+                app._snap.text(point[0] - 4, point[1] - 4, ''+(i + 1))
+            });
+
+            var totalDistance = app.getDistance(orderedPath[0], [homeX, homeY]);
+            for(var i = 1; i < orderedPath.length; i++) {
+                totalDistance = totalDistance + app.getDistance(orderedPath[i - 1], orderedPath[i]);
+            }
+            totalDistance = totalDistance + app.getDistance(
+                orderedPath[orderedPath.length - 1],
+                [homeX, homeY]
+            );
+            return {
+                waypointCount : orderedPath.length,
+                totalDistance : totalDistance,
+                waypoints : orderedPath.map(function(point) {
+                    return {
+                        lat : point[0].toFixed(4),
+                        lon : point[1].toFixed(4)
+                    }
+                })
+            }
+        },
+
+        // Utility methods
+        getBBox : function() {
+            if(!this.bbox) {
+                this.bbox = this.polygonDraw._pathSVG.getBBox(
+                    this.polygonDraw._pathSVG.attr('path')
+                );
+            }
+            return this.bbox;
+        },
+
+        getDistance : function(p1, p2) {
+            return Math.abs(Math.sqrt(
+                Math.pow(p1[0] - p2[0], 2) + Math.pow(p1[1] - p2[1], 2)
+            ));
+        },
+
+        _debugIntersection : function(intersection) {
+            if(_debug) {
+                this._snap.path(
+                    "M" + intersection[0].x + ',' + intersection[0].y +
+                    'L' + intersection[1].x + ',' + intersection[1].y
+                ).attr({
+                    stroke: '#0f0',
+                    strokeWidth: 5
+                });
+            }
         }
+
     }
 });
 

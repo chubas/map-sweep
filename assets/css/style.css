@@ -1,4 +1,12 @@
 .map {
     width : 1288px;
     height: 543px;
+    margin-bottom: 10px;
+}
+
+.dl {
+    padding: 10px;
+    border: 1px solid black;
+    display: inline-block;
+    margin-top: 10px;
 }
