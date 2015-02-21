@@ -215,6 +215,7 @@ Class(SC, 'App').inherits(Widget)({
                     totalPoints = totalPoints.reverse();
                     legSweep = -1 - legSweep; // Alternate between 0 and -1
                 }
+
                 for(var i = 0; i < totalPoints.length; i += 2) {
                     if(legSweep == 0) {
                         orderedPath.push(totalPoints[i]);
@@ -233,9 +234,28 @@ Class(SC, 'App').inherits(Widget)({
                     strokeWidth : 3
                 });
 
+                var totalDistance = getDistance(totalPoints[0], [homeX, homeY]);
+                for(var i = 1; i < totalPoints.length; i++) {
+                    totalDistance = totalDistance + getDistance(totalPoints[i - 1], totalPoints[i]);
+                }
+                totalDistance = totalDistance + getDistance(
+                    totalPoints[totalPoints.length - 1],
+                    [homeX, homeY]
+                );
+                return {
+                    waypointCount : totalPoints.length,
+                    totalDistance : totalDistance,
+                    waypoints : totalPoints.map(function(point) {
+                        return {
+                            lat : point[0].toFixed(4),
+                            lon : point[1].toFixed(4)
+                        }
+                    })
+                }
             };
 
-            buildPath(totalPoints, legTravelDirection, sweepDirection);
+            var dataResult = buildPath(totalPoints, legTravelDirection, sweepDirection);
+            console.dir(dataResult);
 
         }
     }
