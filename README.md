@@ -15,6 +15,15 @@ distance.
 
 `node bin/server.js`
 
+## Usage
+
+When openen, click the points that define the polygon, then double click to close
+the shape. After that, you will be required to click where the home should be,
+and after that, a prompt asking for the two parameters "leg distance" and "flight
+path direction". The path will be calculated and displayed, and the links for
+either presenting or downloading the flight data will appear in the bottom of the
+page.
+
 ## Limitations
 
 Currently, the program doesn't validate if the area is a convex polygon, and will
